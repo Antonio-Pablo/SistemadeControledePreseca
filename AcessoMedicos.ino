@@ -5,16 +5,18 @@
 #define SS_RFID 10  // Pino CS do módulo RFID
 #define RST_RFID 9  // Pino RST do módulo RFID
 #define SS_SD 4     // Pino CS do módulo SD
-#define led 13
+#define BUZZER 7    // Pino do buzzer
+
 MFRC522 mfrc522(SS_RFID, RST_RFID);
 File arquivo;
 
 // Definição da data e hora manual
-String data_hora = "21/02/2025 11:05";  // Ajuste conforme necessário
+String data_hora = "21/02/2025 08:30";  // Ajuste conforme necessário
 
 void setup() {
     Serial.begin(9600);
     SPI.begin();
+    pinMode(BUZZER, OUTPUT);
 
     // Inicializa o módulo RFID
     mfrc522.PCD_Init();
@@ -46,19 +48,41 @@ void loop() {
     // Relacionando UID a um médico (exemplo)
     String medico_nome = "";
     if (uid == "403d7396c80") {
-        medico_nome = "Dr. Nattan Albuquerque";
-    } else if (uid == "4de342196c80") {
-        medico_nome = "Dra. Rayssa Nery";
+        medico_nome = "Dr. Digeoérgio";
     } else if (uid == "4fa878196c80") {
-        medico_nome = "Dr. Digeorgio Martins";
-    } else {
+        medico_nome = "Dra. Elba Laiza";
+    }else if (uid == "4de342196c80") {
+        medico_nome = "Dr. Antonio Pablo";
+    }
+    else {
         Serial.println("Médico não cadastrado! Registro não será salvo.");
+        tone(BUZZER, 1000, 500); // Som de erro
         return; // Sai da função sem salvar no SD
     }
 
     // Exibe o nome do médico no monitor serial
     Serial.print("Médico: ");
     Serial.println(medico_nome);
+
+    // Verifica se o médico já registrou entrada no dia
+    bool ja_registrado = false;
+    String ultima_linha = "";
+    arquivo = SD.open("presenca.txt", FILE_READ);
+    if (arquivo) {
+        while (arquivo.available()) {
+            ultima_linha = arquivo.readStringUntil('\n');
+        }
+        arquivo.close();
+        if (ultima_linha.indexOf(uid) != -1 && ultima_linha.indexOf("Entrada") != -1) {
+            ja_registrado = true;
+        }
+    }
+
+    // Define tipo de registro
+    String tipo_registro = ja_registrado ? "Saída" : "Entrada";
+
+    // Som de confirmação
+    tone(BUZZER, 2000, 300);
 
     // Salvar os dados no cartão SD
     arquivo = SD.open("presenca.txt", FILE_WRITE);
@@ -67,12 +91,12 @@ void loop() {
         arquivo.print(uid);
         arquivo.print(" - Médico: ");
         arquivo.print(medico_nome);
+        arquivo.print(" - Tipo: ");
+        arquivo.print(tipo_registro);
         arquivo.print(" - Data/Hora: ");
         arquivo.println(data_hora); // Usa a data e hora manual
         arquivo.close();
-        Serial.println("Presença salva no SD!");
-        digitalWrite(led, HIGH);
-        
+        Serial.println("Registro de " + tipo_registro + " salvo no SD!");
     } else {
         Serial.println("Erro ao salvar no SD!");
     }
